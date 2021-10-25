@@ -4,9 +4,6 @@ from functools import wraps
 from jose import jwt
 from urllib.request import urlopen
 
-from werkzeug.datastructures import T
-
-
 AUTH0_DOMAIN = 'dev-y19m-614.us.auth0.com'
 ALGORITHMS = ['RS256']
 API_AUDIENCE = 'coffee_shop'
@@ -26,14 +23,14 @@ class AuthError(Exception):
 
 def get_token_auth_header():
     header_token = request.headers.get('Authorization', None)
-    if header_token == None:
+    if not header_token:
         raise AuthError({
             'code': 'authorization_header_missing',
             'description': 'Authorization header is expected'
         }, 401)
     
-    token_splited = header_token.split(' ')
-    if token_splited[0].lower() != 'beared':
+    token_splited = header_token.split()
+    if token_splited[0].lower() != 'bearer':
         raise AuthError({
             'code': 'invalid_header',
             'description': 'Authorization header must start with "Bearer".'
@@ -53,23 +50,23 @@ def get_token_auth_header():
     return token
 
 def check_permissions(permission, payload):
-    if 'permissons' not in payload:
+    if 'permissions' not in payload:
         raise AuthError({
             'code': 'token_expired',
-            'description': 'token does not include permissons'
+            'description': 'token does not include permissions'
         }, 400)
-    elif permission not in payload['permissons']:
+    if permission not in payload['permissions']:
         raise AuthError({
             'code': 'not_allowed',
             'description': 'user is not allowed to request'
         }, 403)
-    else:
-        return True
+    return True
 
 def verify_decode_jwt(token):
     json_url = urlopen(f'https://{AUTH0_DOMAIN}/.well-known/jwks.json')
     secret = json.loads(json_url.read())
     header_unverified = jwt.get_unverified_header(token)
+    rsa = {}
 
     if 'kid' not in header_unverified:
         raise AuthError({

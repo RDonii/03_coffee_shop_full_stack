@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify, abort
 from sqlalchemy import exc, or_
 import json
 from flask_cors import CORS
+import array
 
 from .database.models import db_drop_and_create_all, setup_db, Drink
 from .auth.auth import AuthError, requires_auth
@@ -18,12 +19,9 @@ db_drop_and_create_all()
 def get_drinks_for_all():
     try:
         drinks_query = Drink.query.all()
-        drinks = []
-        for drink in drinks_query:
-            drink_formatted = drink.short()
-            drinks.append(drink_formatted)
-        
-        return json({
+        drinks = [drink.short() for drink in drinks_query]
+
+        return jsonify({
             "success": True,
             "drinks": drinks
         })
@@ -31,56 +29,53 @@ def get_drinks_for_all():
         abort(500)
 
 @app.route('/drinks-detail', methods = ['GET'])
-@requires_auth(permission='get:drinks-detail')
-def drinks_detail():
+@requires_auth('get:drinks-detail')
+def drinks_detail(payload):
     try:
         drinks_query = Drink.query.all()
-        drinks = []
-        for drink in drinks_query:
-            drink_formatted = drink.short()
-            drinks.append(drink_formatted)
-
-        return json({
+        drinks = [drink.long() for drink in drinks_query]
+        return jsonify({
             'success': True,
-            'drink': drinks
+            'drinks': drinks
         })
     except:
         abort(500)
 
 
 
-@app.route('/drinks', methods = 'POST')
+@app.route('/drinks', methods = ['POST'])
 @requires_auth(permission='post:drinks')
-def post_drinks():
+def post_drinks(payload):
     data = request.get_json()
     new_title = data.get('title', None)
-    new_recipe = data.get('title', None)
+    new_recipe = data.get('recipe', None)
 
     if new_title==None or new_recipe==None:
         abort(400)
 
     else:
         try:
+            new_recipe = "["+json.dumps(new_recipe)+"]"
             new_drink = Drink(title=new_title, recipe=new_recipe)
             new_drink.insert()
 
+            
             new_drink_long = new_drink.long()
 
-            return json({
+            return jsonify({
                 'success': True,
-                'drinks': [new_drink_long]
+                'drinks': new_drink_long
             })
         except:
             abort(422)
 
 @app.route('/drinks/<int:id>', methods = ['PATCH'])
 @requires_auth(permission='patch:drinks')
-def update_drinks(id):
+def update_drinks(payload, id):
     drink = Drink.query.filter(Drink.id==id).one_or_none()
     if drink==None:
         abort(404)
     
-    drink_query = Drink.query.filter(Drink.id==id)
     data = request.get_json()
     update_title = data.get('title', None)
     update_recipe = data.get('recipe', None)
@@ -89,23 +84,23 @@ def update_drinks(id):
         if update_title==None and update_recipe==None:
             abort(400)
         if update_title!=None:
-            drink_query.title = update_title
+            drink.title = update_title
         if update_recipe!=None:
-            drink_query.recipe=update_recipe
-        Drink.update()
+            drink.recipe=update_recipe
+        drink.update()
     except:
         abort(422)
     
-    drinks = drink_query.long()
+    drinks = drink.long()
 
-    return json({
+    return jsonify({
         'success': True,
         'drinks': [drinks]
     })
 
 @app.route('/drinks/<int:id>', methods = ['DELETE'])
 @requires_auth(permission='delete:drinks')
-def delete_drinks(id):
+def delete_drinks(payload, id):
     drink = Drink.query.filter(Drink.id==id).one_or_none()
     if drink==None:
         abort(404)
@@ -115,7 +110,7 @@ def delete_drinks(id):
     except:
         abort(500)
 
-    return json({
+    return jsonify({
         'success': True,
         'delete': id
     })
@@ -156,9 +151,7 @@ def not_found(error):
     }), 500
 
 @app.errorhandler(AuthError)
-def not_found(error):
-    return jsonify({
-        "success": False,
-        "error": AuthError,
-        "message": "Authorization failed"
-    }), AuthError
+def handle_auth_error(ex):
+    response = jsonify(ex.error)
+    response.status_code = ex.status_code
+    return response
