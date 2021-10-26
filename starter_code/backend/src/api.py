@@ -13,19 +13,21 @@ CORS(app)
 
 db_drop_and_create_all()
 
+
 # ROUTES
+@app.route('/')
+def home_page():
+    return 'not implemented'
+
 @app.route('/drinks', methods = ['GET'])
 def get_drinks_for_all():
-    try:
-        drinks_query = Drink.query.all()
-        drinks = [drink.short() for drink in drinks_query]
+    drinks_query = Drink.query.all()
+    drinks = [drink.short() for drink in drinks_query]
 
-        return jsonify({
-            "success": True,
-            "drinks": drinks
-        })
-    except:
-        abort(500)
+    return jsonify({
+        "success": True,
+        "drinks": drinks
+    })
 
 @app.route('/drinks-detail', methods = ['GET'])
 @requires_auth('get:drinks-detail')
